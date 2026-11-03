@@ -1,0 +1,27 @@
+(async () => {
+  const MULAI = '', SAMPAI = '';
+  window.STOP = false;
+  const rows = [...document.querySelectorAll('td')]
+    .filter(td => /^DSD-\d+/.test(td.innerText.trim()))
+    .map(td => { const f = td.previousElementSibling; return { id: f.innerText.trim(), sales: f.previousElementSibling.innerText.trim().replace(/[\\/:*?"<>|]/g, '') }; })
+    .filter(r => /^\d+$/.test(r.id));
+  const seen = new Set(); let list = rows.filter(r => !seen.has(r.id) && seen.add(r.id));
+  const i = MULAI ? list.findIndex(r => r.id === MULAI) : 0;
+  const j = SAMPAI ? list.findIndex(r => r.id === SAMPAI) : list.length - 1;
+  if (i < 0 || j < 0) { console.error('MULAI/SAMPAI tidak ditemukan'); return; }
+  list = list.slice(i, j + 1);
+  console.log(`Akan mengunduh ${list.length} faktur`);
+  for (const r of list) {
+    if (window.STOP) { console.log('Dihentikan sebelum', r.id); break; }
+    try {
+      const res = await fetch(`/distributorx/invoice_form.php?id=${r.id}&kr=N&bn=N`, { credentials: 'include' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(await res.blob());
+      a.download = `INV_${r.id}_${r.sales}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      console.log('OK', r.id);
+    } catch (e) { console.error('GAGAL', r.id, e); }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  console.log('Selesai');
+})();
