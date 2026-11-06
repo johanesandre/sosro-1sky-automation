@@ -1,0 +1,836 @@
+<!doctype html><html lang="id"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Konversi Faktur Sosro</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: satu kolom kerja, 5 langkah vertikal (upload, aturan sales, tabel produk, opsi, hasil). Tabel hasil lebar scroll di wadahnya sendiri. */
+:root {
+  --bg: #f2f5f5;
+  --surface: #ffffff;
+  --ink: #14211f;
+  --muted: #5a6b68;
+  --line: #d8e0df;
+  --accent: #0f6b5c;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0f0ec;
+  --warn: #9a5a05;
+  --warn-soft: #fbefd9;
+  --bad: #b42318;
+  --bad-soft: #fde7e4;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1615; --surface: #17211f; --ink: #e6efed; --muted: #93a5a1; --line: #263432;
+    --accent: #4fc3ab; --accent-ink: #07201a; --accent-soft: #163029;
+    --warn: #f0b05a; --warn-soft: #34270f; --bad: #ff8a7a; --bad-soft: #3a1a17;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1615; --surface: #17211f; --ink: #e6efed; --muted: #93a5a1; --line: #263432;
+  --accent: #4fc3ab; --accent-ink: #07201a; --accent-soft: #163029;
+  --warn: #f0b05a; --warn-soft: #34270f; --bad: #ff8a7a; --bad-soft: #3a1a17;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 400 15px/1.5 var(--font-body);
+  padding-block: 32px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1 { font-size: 1.6rem; line-height: 1.2; margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 1rem; margin: 0; font-weight: 600; }
+h3 { font-size: 0.9375rem; margin: 0; font-weight: 600; }
+p { margin: 0; }
+.lead { color: var(--muted); max-width: 62ch; margin-top: 6px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.step { font: 500 0.75rem var(--font-mono); color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 4px; }
+.hint { color: var(--muted); font-size: 0.875rem; }
+
+.drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border: 1.5px dashed var(--line); border-radius: 8px; padding: 28px 16px; text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drop strong { font-weight: 600; }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.fileinfo { font: 400 0.8125rem var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font: 500 0.6875rem var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--bg); position: sticky; top: 0; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.mono, .mono { font-family: var(--font-mono); font-size: 0.8125rem; }
+.map td { padding: 4px 6px; }
+.map input { width: 100%; min-width: 120px; }
+.map td.ro { white-space: normal; min-width: 180px; max-width: 320px; font-size: 0.8125rem; }
+
+input[type="text"], input[type="number"], input[type="date"], select {
+  font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 5px; padding: 6px 8px;
+}
+input[type="text"]:focus, input[type="number"]:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+button, label.btn {
+  font: 500 0.875rem var(--font-body); border-radius: 6px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: inline-block;
+}
+button:hover:not(:disabled), label.btn:hover { border-color: var(--accent); }
+button:focus-visible, label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); padding: 10px 18px; font-size: 0.9375rem; }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.icon { padding: 4px 9px; color: var(--muted); }
+label.btn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.opt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.opt label.t { font-weight: 500; font-size: 0.875rem; }
+.check { display: flex; gap: 8px; align-items: flex-start; }
+.check input { margin-top: 4px; accent-color: var(--accent); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+.stat b { display: block; font: 500 1.125rem var(--font-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat span { font-size: 0.75rem; color: var(--muted); }
+
+.notes { display: flex; flex-direction: column; gap: 8px; }
+.note { padding: 8px 12px; border-radius: 6px; font-size: 0.875rem; }
+.note.warn { background: var(--warn-soft); color: var(--warn); }
+.note.bad { background: var(--bad-soft); color: var(--bad); }
+.note.ok { background: var(--accent-soft); color: var(--accent); }
+.chip { display: inline-block; font: 500 0.6875rem var(--font-mono); padding: 1px 6px; border-radius: 4px; background: var(--warn-soft); color: var(--warn); margin-left: 6px; }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+.chip.ok { background: var(--accent-soft); color: var(--accent); }
+.preview { max-height: 440px; overflow: auto; }
+.cols { display: flex; gap: 6px; flex-wrap: wrap; }
+.cols span { font: 400 0.75rem var(--font-mono); border: 1px solid var(--line); border-radius: 4px; padding: 2px 7px; color: var(--muted); }
+.toast { font-size: 0.875rem; min-height: 1.3em; color: var(--muted); }
+.dlbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; position: sticky; top: 0; z-index: 3; background: var(--surface); padding-block: 4px; }
+.missing { border: 1px solid var(--warn); border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); }
+.missing .tablewrap { border-color: var(--line); }
+body.dragging::after { content: "Lepas file faktur di sini"; position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--accent) 82%, transparent); color: var(--accent-ink); font: 600 1.5rem var(--font-body); z-index: 50; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<main>
+  <header>
+    <h1>Konversi Faktur Sosro</h1>
+    <p class="lead">Tarik file faktur harian ke halaman ini, hasilnya langsung jadi CSV siap upload ke ND6. KD_PRODUK dan PRODUK memakai kode dan nama ND6. Qty otomatis dikonversi ke satuan PCS memakai kolom "Satuan in Pcs" di tabel produk (qty x isi per satuan), harga ikut dibagi isi supaya subtotal tetap sama, lalu dibagi 1,11. Diskon 1 dan Diskon 2 juga dibagi 1,11. Produk yang sama dalam satu faktur (mis. barang bonus) otomatis digabung jadi satu baris karena ND6 menolak produk ganda. Jika kolom PRODUK di faktur sudah memuat kata PCS, qty dan harga dibiarkan karena sudah pcs.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="h-upload">
+    <div class="panel-head"><span class="step">1</span><h2 id="h-upload">Upload file faktur</h2></div>
+    <label class="drop" id="drop" for="file">
+      <strong>Pilih file faktur atau tarik ke mana saja di halaman ini</strong>
+      <span class="hint">.xls, .xlsx atau .csv. Data dibaca di browser, tidak dikirim ke server.</span>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv">
+    </label>
+    <p class="fileinfo" id="fileinfo" hidden></p>
+    <div id="empty">
+      <p class="hint" style="margin-bottom:8px">Kolom hasil, urut sesuai template ND6:</p>
+      <div class="cols" id="cols"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-map">
+    <div class="panel-head"><span class="step">2</span><h2 id="h-map">Aturan sales</h2><span class="hint">Nama sales di file dicocokkan ke kode di bawah. KD_OUTLET diisi Kode Cust, KD_SALESMAN diisi Kode Sales. Sales baru di faktur otomatis ditambahkan ke sini, tinggal isi kodenya.</span></div>
+    <div class="tablewrap">
+      <table class="map">
+        <thead><tr><th>Nama sales di file</th><th>Kode Cust</th><th>Kode Sales</th><th></th></tr></thead>
+        <tbody id="maprows"></tbody>
+      </table>
+    </div>
+    <div class="row"><button type="button" id="addrow">Tambah sales</button></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-prod">
+    <div class="panel-head"><span class="step">3</span><h2 id="h-prod">Tabel produk ND6</h2><span class="hint">Kode produk Sosro (1Sky) dicocokkan ke kode, nama dan satuan in pcs ND6.</span></div>
+    <p class="fileinfo" id="prodinfo"></p>
+    <div class="row">
+      <label class="btn">Update tabel produk (.xlsx)<input type="file" id="prodfile" accept=".xlsx,.xls,.csv"></label>
+      <button type="button" id="prodreset" hidden>Pakai tabel bawaan</button>
+      <span class="toast" id="prodtoast" role="status" aria-live="polite"></span>
+    </div>
+    <p class="hint">Format file: kolom A kode 1Sky, kolom C Code ND6, kolom D Nama Produk ND6, kolom E Satuan in Pcs (sama seperti file Produk_Code_ND6_Vs_Sosro.xlsx).</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-opt">
+    <div class="panel-head"><span class="step">4</span><h2 id="h-opt">Opsi</h2><span class="hint">Pilihan tersimpan otomatis.</span></div>
+    <div class="opts">
+      <div class="opt">
+        <label class="t" for="divisor">Pembagi harga (net ke exc)</label>
+        <input type="number" id="divisor" value="1.11" step="0.01" min="0.01">
+      </div>
+      <div class="opt">
+        <label class="t" for="dec">Desimal harga dan total</label>
+        <input type="number" id="dec" value="2" step="1" min="0" max="6">
+      </div>
+      <div class="opt">
+        <label class="t" for="fakturSrc">Isi kolom FAKTUR dari</label>
+        <select id="fakturSrc">
+          <option value="FAKTUR">Kolom FAKTUR (nomor asli)</option>
+          <option value="FAKTUR 2">Kolom FAKTUR 2 (DSD-...)</option>
+        </select>
+      </div>
+      <div class="opt">
+        <label class="t" for="dateOrder">Urutan tanggal di file faktur</label>
+        <select id="dateOrder">
+          <option value="auto">Otomatis (cocokkan dengan rentang di judul file)</option>
+          <option value="md">Bulan/Hari, mis. 11/03/2026 = 3 Nov</option>
+          <option value="dm">Hari/Bulan, mis. 03/11/2026 = 3 Nov</option>
+        </select>
+      </div>
+      <div class="opt">
+        <label class="t" for="dateFmt">Format tanggal hasil</label>
+        <select id="dateFmt">
+          <option value="iso">2026-11-03 (sesuai file tes ND6)</option>
+          <option value="dmy">03-11-2026</option>
+        </select>
+      </div>
+      <div class="opt">
+        <label class="t" for="dateSrc">Sumber tanggal hasil</label>
+        <select id="dateSrc">
+          <option value="tanggal">Kolom TANGGAL di faktur</option>
+          <option value="create">Tanggal dari kolom DATE CREATE</option>
+          <option value="fixed">Satu tanggal tetap untuk semua baris</option>
+        </select>
+      </div>
+      <div class="opt" id="fixedWrap" hidden>
+        <label class="t" for="fixedDate">Tanggal tetap</label>
+        <input type="date" id="fixedDate">
+      </div>
+      <div class="opt">
+        <label class="t" for="shift">Geser hari (-1 = mundur sehari)</label>
+        <input type="number" id="shift" value="0" step="1" min="-31" max="31">
+      </div>
+      <div class="opt">
+        <div class="check">
+          <input type="checkbox" id="auto">
+          <label for="auto"><span class="t" style="font-weight:500">Download otomatis</span><br><span class="hint">File CSV langsung terunduh setelah faktur dibaca, jika semua sales dan produk sudah lengkap.</span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-out" id="result" hidden>
+    <div class="panel-head"><span class="step">5</span><h2 id="h-out">Hasil konversi</h2></div>
+    <div class="dlbar">
+      <button type="button" class="primary" id="dl">Download .csv</button>
+      <span class="toast" id="toast" role="status" aria-live="polite"></span>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="notes" id="notes"></div>
+    <details id="pcsbox" hidden style="border:1px solid var(--line);border-radius:6px;padding:8px 12px">
+      <summary id="pcs-h" style="cursor:pointer;font-weight:600"></summary>
+      <p class="hint">Untuk cek silang. Produk yang kolom PRODUK-nya tidak memuat kata PCS dikalikan Satuan in Pcs dari tabel produk. Produk yang memuat kata PCS dibiarkan.</p>
+      <div class="tablewrap"><table class="map"><thead><tr><th>Kode 1Sky</th><th>PRODUK di faktur</th><th>Baris</th><th>Qty asli &rarr; qty pcs</th></tr></thead><tbody id="pcsrows"></tbody></table></div>
+    </details>
+    <div class="missing" id="oos">
+      <h3 id="oos-h">Hapus produk Out of Stock (OOS)</h3>
+      <p class="hint">Jika upload ke ND6 gagal karena Out of Stock, unggah file hasil error dari ND6 (.txt). Nomor Sales Order dan kode produk OOS dibaca otomatis, lalu dibuang dari CSV. Setelah itu download ulang.</p>
+      <div class="dlbar" style="position:static;padding:0">
+        <label class="btn">Unggah hasil error ND6 (.txt)<input type="file" id="oosfile" accept=".txt,.csv,.log,text/plain"></label>
+        <select id="oosmode" aria-label="Cara menghapus">
+          <option value="item">Hapus hanya baris produk OOS</option>
+          <option value="faktur">Hapus seluruh faktur yang kena OOS</option>
+        </select>
+        <button type="button" id="oosreset" hidden>Kembalikan semua</button>
+        <span class="toast" id="oostoast" role="status" aria-live="polite"></span>
+      </div>
+      <div class="tablewrap" id="oostable" hidden><table class="map"><thead><tr><th>Faktur / SO</th><th>Kode ND6</th><th>Produk</th><th>Qty</th><th>Dihapus</th></tr></thead><tbody id="oosrows"></tbody></table></div>
+    </div>
+    <div class="missing" id="missing" hidden>
+      <h3 id="missing-h">Produk belum ada di tabel ND6</h3>
+      <p class="hint">Isi Kode ND6 (nama terisi otomatis jika kodenya dikenal) dan Satuan in Pcs (isi pcs per satuan di faktur, 1 bila sudah pcs) untuk produk di bawah. Tersimpan di browser ini, jadi besok tidak perlu diisi lagi.</p>
+      <div class="tablewrap"><table class="map"><thead><tr><th>Kode 1Sky</th><th>Nama di faktur</th><th>Baris</th><th>Kode ND6</th><th>Nama produk ND6</th><th>Satuan in Pcs</th><th></th></tr></thead><tbody id="missrows"></tbody></table></div>
+    </div>
+    <div class="tablewrap preview"><table id="preview"></table></div>
+  </section>
+  <datalist id="nd6list"></datalist>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function () {
+  var HEADER = ["TANGGAL","DATE_CREATE","FAKTUR","KD_OUTLET","OUTLET","ALAMAT","ORDER","KD_SALESMAN","SALESMAN","KD_PRODUK","PRODUK","QTY","HARGA","SUB TOTAL","DISKON_1","DISKON_2","TOTAL","KETERANGAN"];
+  var DEFAULT_MAP = [
+    { nama: "AINUL MUBAROK", cust: "AINU003", sales: "AINUL" },
+    { nama: "YANZA WIPHA ARSANA", cust: "YANZ001", sales: "YANZA" },
+    { nama: "DEFRI WIDIARTO", cust: "DEFR001", sales: "DEFRI" }
+  ];
+  /* Tabel bawaan: kode 1Sky -> [Kode ND6, Nama Produk ND6, Satuan in Pcs]. Sumber: Produk_Code_ND6_Vs_Sosro.xlsx */
+  var BASE_PRODUCTS = {"BJCCKAF2501":["SGS001","COUNTRY CHOICE KOTAK AP 250ML K24",24],"BJCCKAF2502":["SGS001","COUNTRY CHOICE KOTAK AP 250ML K24",1],"BJCCKGV2501":["SGS002","COUNTRY CHOICE KOTAK GV 250ML",24],"BJCCKGV2502":["SGS002","COUNTRY CHOICE KOTAK GV 250ML",1],"BJCCKMN2502":["SGS003","COUNTRY CHOICE KOTAK MN 250ML",1],"BJCCKMN2501":["SGS003","COUNTRY CHOICE KOTAK MN 250ML",24],"BJCCKOR0001":["SGS004","COUNTRY CHOICE KOTAK OR 250ML K24",24],"BJCCKOR2501":["SGS004","COUNTRY CHOICE KOTAK OR 250ML K24",24],"BJCCKOR2502":["SGS004","COUNTRY CHOICE KOTAK OR 250ML K24",1],"AP000009-3":["SGS056","ES TEH POCI SAKURA MATCHA LATTE",1],"AP000010-1":["SGS056","ES TEH POCI SAKURA MATCHA LATTE",15],"AP000010-0":["SGS056","ES TEH POCI SAKURA MATCHA LATTE",15],"AP000010-2":["SGS056","ES TEH POCI SAKURA MATCHA LATTE",1],"AP000003-1":["SGS054","ES TEH POCI TEH KRAMPUL SELASIH",1],"AP000003-0":["SGS054","ES TEH POCI TEH KRAMPUL SELASIH",15],"AP000003-2":["SGS054","ES TEH POCI TEH KRAMPUL SELASIH",1],"AP000002-1":["SGS053","ES TEH POCI GULA AREN",15],"AP000002-0":["SGS053","ES TEH POCI GULA AREN",15],"AP000002-3":["SGS053","ES TEH POCI GULA AREN",1],"AP000005-1":["SGS053","ES TEH POCI GULA AREN",15],"AP000005-0":["SGS053","ES TEH POCI GULA AREN",15],"AP000005-3":["SGS053","ES TEH POCI GULA AREN",1],"AP000009-1":["SGS056","ES TEH POCI SAKURA MATCHA LATTE",1],"AP000009-0":["SGS056","ES TEH POCI SAKURA MATCHA LATTE",15],"AP000004-1":["SGS055","ES TEH POCI PANDAN VANILA SELASIH",15],"AP000004-0":["SGS055","ES TEH POCI PANDAN VANILA SELASIH",15],"AP000004-3":["SGS055","ES TEH POCI PANDAN VANILA SELASIH",1],"AP000006-1":["SGS055","ES TEH POCI PANDAN VANILA SELASIH",15],"AP000006-0":["SGS055","ES TEH POCI PANDAN VANILA SELASIH",15],"AP000006-3":["SGS055","ES TEH POCI PANDAN VANILA SELASIH",1],"BKFTB235001":["SGS082","BOTOL KSG FRUITEA",1],"PBFTB235001":["SGS085","KRAT FRUITEA",1],"BJFTBAP0001":["SGS005","FRUITEA BOTOL APEL 235ML",24],"BJFTBAP0003":["SGS005","FRUITEA BOTOL APEL 235ML",24],"BJFTBBC0001":["SGS006","FRUITEA BOTOL BCURRENT 235 ML",24],"BJFTBBC0003":["SGS006","FRUITEA BOTOL BCURRENT 235 ML",24],"BJFTCBC2000":["SGS007","FRUITEA CAN BCURRENT 318ML K20",20],"BJFTCBC2001":["SGS007","FRUITEA CAN BCURRENT 318ML K20",1],"BJFTEAP3505":["SGS009","FRUITEA PET APEL 350ML-SHRNK",12],"BJFTEAP3506":["SGS009","FRUITEA PET APEL 350ML-SHRNK",1],"BJFTEAP0005":["SGS008","FRUITEA PET APEL 500ML K24",24],"BJFTEAP0080":["SGS008","FRUITEA PET APEL 500ML K24",1],"BJFTEBC3505":["SGS010","FRUITEA PET BCURRENT 350ML-SHRINK",12],"BJFTEBC3506":["SGS010","FRUITEA PET BCURRENT 350ML-SHRINK",1],"BJFTEFR3505":["SGS014","FRUITEA PET FREEZE 350ML-SHRNK",12],"BJFTEFR3506":["SGS014","FRUITEA PET FREEZE 350ML-SHRNK",12],"BJFTEFR5001":["SGS011","FRUITEA PET FREEZE 500ML K24",24],"BJFTEFR5002":["SGS011","FRUITEA PET FREEZE 500ML K24",24],"BJFTELM3505":["SGS012","FRUITEA PET LEMON 350ML SHRNK",12],"BJFTELM3506":["SGS012","FRUITEA PET LEMON 350ML SHRNK",12],"BJFTEMK3501":["SGS013","FRUITEA PET MARKISA 350ML SHRNK",12],"BJFTEMK3505":["SGS013","FRUITEA PET MARKISA 350ML SHRNK",12],"BJFTEMK3506":["SGS013","FRUITEA PET MARKISA 350ML SHRNK",12],"BJFTESB3505":["SGS026","FRUITEA PET STRW 350ML-SHRNK",12],"BJFTESB3506":["SGS026","FRUITEA PET STRW 350ML-SHRNK",12],"BJFTESB0005":["SGS015","FRUITEA PET STRW 500ML K24",24],"BJFTESB0014":["SGS015","FRUITEA PET STRW 500ML K24",1],"BJFTGAP0001":["SGS016","FRUITEA GENGGAM APEL 200ML",24],"BJFTGAP0036":["SGS016","FRUITEA GENGGAM APEL 200ML",24],"BJFTGBC0001":["SGS027","FRUITEA GENGGAM BCURRENT 200ML",24],"BJFTGBC0024":["SGS027","FRUITEA GENGGAM BCURRENT 200ML",24],"BJFTGFR0001":["SGS017","FRUITEA GENGGAM FREEZE 200ML",24],"BJFTGFR0002":["SGS017","FRUITEA GENGGAM FREEZE 200ML",24],"BJFTGSB0001":["SGS018","FRUITEA GENGGAM STRW 200ML",24],"BJFTGSB0032":["SGS018","FRUITEA GENGGAM STRW 200ML",24],"BJFTKAP2002":["SGS089","FRUITEA KOTAK APEL 200ML K24",24],"BJFTKAP2001":["SGS089","FRUITEA KOTAK APEL 200ML K24",24],"BJFTKAP2501":["SGS025","FRUITEA KOTAK APEL 250ML",24],"BJFTKAP2502":["SGS025","FRUITEA KOTAK APEL 250ML",24],"BJFTKBC2002":["SGS019","FRUITEA KOTAK BCURRUNT 200ML K24",24],"BJFTKBC2001":["SGS019","FRUITEA KOTAK BCURRUNT 200ML K24",24],"BJFTKBC2501":["SGS020","FRUITEA KOTAK BCURRENT 250ML",24],"BJFTKBC2502":["SGS020","FRUITEA KOTAK BCURRENT 250ML",24],"BJFTKFR2001":["SGS021","FRUITEA KOTAK FREEZE 200ML",24],"BJFTKFR2002":["SGS021","FRUITEA KOTAK FREEZE 200ML",24],"BJFTKLM2501":["SGS022","FRUITEA KOTAK LEMON 250ML",24],"BJFTKLM2502":["SGS022","FRUITEA KOTAK LEMON 250ML",24],"BJFTOAP2001":["SGS023","FRUITEA POUCH APEL 200ML",24],"BJFTOAP2002":["SGS023","FRUITEA POUCH APEL 200ML",24],"BJFTOBC2001":["SGS024","FRUITEA POUCH BCURRENT 200ML",24],"BJFTOBC2002":["SGS024","FRUITEA POUCH BCURRENT 200ML",24],"J0000021-3":["SGS088","GELAS GAGANG POCI LSN",1],"BJPAB150043":["SGS032","PRIM-A 1500ML K12 SHORT NECK-HANGER",12],"BJPAB150044":["SGS032","PRIM-A 1500ML K12 SHORT NECK-HANGER",12],"BJPAB190001":["SGS028","PRIM-A GALON 19LT",1],"BJPAB220001":["SGS029","PRIM-A 220ML BOTOL K-20",24],"BJPAB240001":["SGS029","PRIM-A 220ML BOTOL K-20",24],"BJPAB240002":["SGS029","PRIM-A 220ML BOTOL K-20",24],"BJPAB330065":["SGS030","PRIM-A 330ML K-24 SHORT NECK",24],"BJPAB330066":["SGS030","PRIM-A 330ML K-24 SHORT NECK",24],"BJPAB600052":["SGS031","PRIM-A 600ML K24 SHORT NECK",24],"BJPAB600053":["SGS031","PRIM-A 600ML K24 SHORT NECK",24],"BKPAB190001":["SGS087","GALON KSG PRIM-A",1],"BJPAP220001":["SGS033","PRIM-A 220ML K-48",48],"A0000051-1":["SGS057","TEH CAP POCI SEDUH VANILLA 50GR",10],"A0000051-0":["SGS057","TEH CAP POCI SEDUH VANILLA 50GR",10],"A0000051-3":["SGS057","TEH CAP POCI SEDUH VANILLA 50GR",10],"A0000456-0":["SGS058","TEH CAP BOTOL BIRU 80GR",10],"A0000456-1":["SGS058","TEH CAP BOTOL BIRU 80GR",1],"A0000456-3":["SGS058","TEH CAP BOTOL BIRU 80GR",1],"A0000455-0":["SGS059","TEH CAP BOTOL BIRU 40GR",20],"A0000455-1":["SGS059","TEH CAP BOTOL BIRU 40GR",1],"A0000455-3":["SGS059","TEH CAP BOTOL BIRU 40GR",1],"BJSTE390001":["SGS034","S-TEE PET 390ML",12],"BJSTK200001":["SGS035","S-TEE KOTAK 200ML",24],"BJSTK200002":["SGS035","S-TEE KOTAK 200ML",1],"BJSTK200005":["SGS052","S-TEE KOTAK 200 ML ROCKET CHICKEN",24],"BJSTK200006":["SGS052","S-TEE KOTAK 200 ML ROCKET CHICKEN",1],"A0000023-1":["SGS060","TEH CAP BOTOL HIJAU 40GR",20],"A0000023-0":["SGS060","TEH CAP BOTOL HIJAU 40GR",20],"A0000457-0":["SGS060","TEH CAP BOTOL HIJAU 40GR",20],"A0000457-1":["SGS060","TEH CAP BOTOL HIJAU 40GR",1],"A0000457-3":["SGS060","TEH CAP BOTOL HIJAU 40GR",1],"A0000471-1":["SGS062","TEH CELUP SOSRO 15",10],"A0000471-0":["SGS062","TEH CELUP SOSRO 15",10],"A0000471-2":["SGS062","TEH CELUP SOSRO 15",10],"A0000440-1":["SGS068","TEH CELUP SOSRO 4",12],"A0000440-0":["SGS068","TEH CELUP SOSRO 4",12],"A0000440-2":["SGS068","TEH CELUP SOSRO 4",12],"A0000442-1":["SGS067","TEH CELUP POCI VANILLA 4 (RENCENG)",12],"A0000442-0":["SGS067","TEH CELUP POCI VANILLA 4 (RENCENG)",12],"A0000091-1":["SGS061","TEH CELUP SOSRO 100",20],"A0000091-0":["SGS061","TEH CELUP SOSRO 100",20],"A0000087-1":["SGS062","TEH CELUP SOSRO 15",10],"A0000087-0":["SGS062","TEH CELUP SOSRO 15",10],"A0000087-2":["SGS062","TEH CELUP SOSRO 15",10],"A0000095-1":["SGS065","TEH CAP POCI WANGI TEH ASLI 25",10],"A0000095-0":["SGS065","TEH CAP POCI WANGI TEH ASLI 25",10],"A0000095-2":["SGS065","TEH CAP POCI WANGI TEH ASLI 25",10],"A0000106-1":["SGS063","TEH CAP POCI WANGI LEMON 25",10],"A0000106-0":["SGS063","TEH CAP POCI WANGI LEMON 25",10],"A0000106-2":["SGS063","TEH CAP POCI WANGI LEMON 25",10],"A0000096-1":["SGS064","TEH CAP POCI WANGI VANILLA 25",10],"A0000096-0":["SGS064","TEH CAP POCI WANGI VANILLA 25",10],"A0000096-2":["SGS064","TEH CAP POCI WANGI VANILLA 25",10],"A0000089-1":["SGS066","TEH CELUP SOSRO 30",10],"A0000089-0":["SGS066","TEH CELUP SOSRO 30",10],"A0000089-2":["SGS066","TEH CELUP SOSRO 30",10],"A0000235-1":["SGS067","TEH CELUP POCI VANILLA 4 (RENCENG)",12],"A0000235-0":["SGS067","TEH CELUP POCI VANILLA 4 (RENCENG)",12],"A0000235-2":["SGS067","TEH CELUP POCI VANILLA 4 (RENCENG)",12],"A0000435-1":["SGS069","TEH BOTOL CELUP MELATI 15",10],"A0000435-0":["SGS069","TEH BOTOL CELUP MELATI 15",10],"A0000435-2":["SGS069","TEH BOTOL CELUP MELATI 15",10],"A0000474-1":["SGS069","TEH BOTOL CELUP MELATI 15",10],"A0000474-0":["SGS069","TEH BOTOL CELUP MELATI 15",10],"A0000474-2":["SGS069","TEH BOTOL CELUP MELATI 15",10],"BJTBE350029":["SGS036","TEH BOTOL PET 350ML ASEPTIC",12],"BJTBE350030":["SGS036","TEH BOTOL PET 350ML ASEPTIC",1],"BJTBE350053":["SGS036","TEH BOTOL PET 350ML ASEPTIC",12],"BJTBE350054":["SGS036","TEH BOTOL PET 350ML ASEPTIC",1],"BJTBE350037":["SGS038","TEH BOTOL PET 350ML ASEPTIC LESS SUGAR",12],"BJTBE350038":["SGS038","TEH BOTOL PET 350ML ASEPTIC LESS SUGAR",1],"BJTBE350055":["SGS038","TEH BOTOL PET 350ML ASEPTIC LESS SUGAR",12],"BJTBE350044":["SGS038","TEH BOTOL PET 350ML ASEPTIC LESS SUGAR",1],"BJTBE350056":["SGS038","TEH BOTOL PET 350ML ASEPTIC LESS SUGAR",1],"BJTBE350033":["SGS037","TEH BOTOL PET 350ML ASEPTIC TAWAR",12],"BJTBE350034":["SGS037","TEH BOTOL PET 350ML ASEPTIC TAWAR",1],"BJTBE350057":["SGS037","TEH BOTOL PET 350ML ASEPTIC TAWAR",12],"BJTBE350058":["SGS037","TEH BOTOL PET 350ML ASEPTIC TAWAR",1],"BJTBE350043":["SGS038","TEH BOTOL PET 350ML ASEPTIC LESS SUGAR",12],"BJTBE450001":["SGS039","TEH BOTOL PET 450ML ORI",24],"BJTBE450002":["SGS039","TEH BOTOL PET 450ML ORI",1],"A0000093-1":["SGS080","SOSRO CELUP HERITAGE JASMINE 25",4],"A0000093-0":["SGS080","SOSRO CELUP HERITAGE JASMINE 25",4],"A0000093-2":["SGS080","SOSRO CELUP HERITAGE JASMINE 25",4],"BJTBK1L0001":["SGS040","TEH BOTOL KOTAK 1 LITER",12],"BJTBK1L0002":["SGS040","TEH BOTOL KOTAK 1 LITER",1],"BJTBK200001":["SGS041","TEH BOTOL KOTAK 200ML ORI",24],"BJTBK200017":["SGS041","TEH BOTOL KOTAK 200ML ORI",24],"BJTBK200018":["SGS041","TEH BOTOL KOTAK 200ML ORI",1],"BJTBK200010":["SGS041","TEH BOTOL KOTAK 200ML ORI",1],"BJTBK200008":["SGS041","TEH BOTOL KOTAK 200ML ORI",24],"ATK00026":["SGS041","TEH BOTOL KOTAK 200ML ORI",24],"BJTBK250001":["SGS042","TEH BOTOL KOTAK 250ML ORI",24],"BJTBK250009":["SGS042","TEH BOTOL KOTAK 250ML ORI",24],"BJTBK250046":["SGS043","TEH BOTOL KOTAK 250ML LESS SUGAR",24],"BJTBK250047":["SGS043","TEH BOTOL KOTAK 250ML LESS SUGAR",1],"BJTBK250032":["SGS042","TEH BOTOL KOTAK 250ML ORI",1],"BJTBK250025":["SGS042","TEH BOTOL KOTAK 250ML ORI",24],"BJTBK300001":["SGS044","TEH BOTOL KOTAK 300ML K24",24],"BJTBK300002":["SGS044","TEH BOTOL KOTAK 300ML K24",1],"BJTBK300003":["SGS044","TEH BOTOL KOTAK 300ML K24",24],"BJTBK300004":["SGS044","TEH BOTOL KOTAK 300ML K24",1],"BJTBS220001":["SGS045","TEH BOTOL SOSRO 220ML",24],"BJTBS220004":["SGS045","TEH BOTOL SOSRO 220ML",24],"BKTBS220001":["SGS081","BOTOL KSG SOSRO",1],"PBTBS220001":["SGS084","KRAT SOSRO",1],"A0000120-1":["SGS070","TEH CAP BOTOL HIJAU CELUP 25",10],"A0000120-0":["SGS070","TEH CAP BOTOL HIJAU CELUP 25",10],"A0000120-2":["SGS070","TEH CAP BOTOL HIJAU CELUP 25",10],"A0000157-1":["SGS071","TEH CELUP SOSRO 25",10],"A0000157-0":["SGS071","TEH CELUP SOSRO 25",10],"A0000157-2":["SGS071","TEH CELUP SOSRO 25",10],"A0000026-0":["SGS072","TEH CAP POCI BIRU 40GR",10],"A0000026-1":["SGS072","TEH CAP POCI BIRU 40GR",1],"A0000026-3":["SGS072","TEH CAP POCI BIRU 40GR",1],"A0000031-0":["SGS074","TEH CAP POCI COKLAT 40GR",20],"A0000031-1":["SGS074","TEH CAP POCI COKLAT 40GR",1],"A0000031-3":["SGS074","TEH CAP POCI COKLAT 40GR",1],"A0000426-1":["SGS073","TEH POCI CELUP MELATI 15",10],"A0000426-0":["SGS073","TEH POCI CELUP MELATI 15",10],"A0000426-2":["SGS073","TEH POCI CELUP MELATI 15",10],"A0000472-1":["SGS073","TEH POCI CELUP MELATI 15",10],"A0000472-0":["SGS073","TEH POCI CELUP MELATI 15",10],"A0000472-2":["SGS073","TEH POCI CELUP MELATI 15",10],"A0000147-0":["SGS075","TEH CAP POCI GOLD 40GR",10],"A0000147-1":["SGS075","TEH CAP POCI GOLD 40GR",1],"A0000147-3":["SGS075","TEH CAP POCI GOLD 40GR",1],"A0000036-0":["SGS076","TEH CAP POCI HIJAU 40GR",10],"A0000036-1":["SGS076","TEH CAP POCI HIJAU 40GR",1],"A0000036-3":["SGS076","TEH CAP POCI HIJAU 40GR",1],"A0000038-0":["SGS077","TEH CAP POCI KUNING 40GR",10],"A0000038-1":["SGS077","TEH CAP POCI KUNING 40GR",1],"A0000038-3":["SGS077","TEH CAP POCI KUNING 40GR",1],"A0000446-1":["SGS079","TEH CAP POCI PREMIUM 4BR",12],"A0000446-0":["SGS079","TEH CAP POCI PREMIUM 4BR",12],"A0000343-1":["SGS078","TEH CAP POCI PREMIUM 25",10],"A0000343-0":["SGS078","TEH CAP POCI PREMIUM 25",10],"A0000343-2":["SGS078","TEH CAP POCI PREMIUM 25",10],"BJTSB230002":["SGS046","TEBS BOTOL 230ML",24],"BJTSB230003":["SGS046","TEBS BOTOL 230ML",24],"BKTSB230001":["SGS083","BOTOL KSG TEBS",1],"PBTSB230001":["SGS086","KRAT TEBS",1],"BJTSC330200":["SGS047","TEBS CAN 330ML K-20",20],"BJTSC330201":["SGS047","TEBS CAN 330ML K-20",1],"A0000422-1":["SGS080","SOSRO CELUP HERITAGE JASMINE 25",4],"A0000422-2":["SGS080","SOSRO CELUP HERITAGE JASMINE 25",4],"BJTSE500001":["SGS051","TEBS 500ML",24],"BJTSE500002":["SGS051","TEBS 500ML",1],"BJTSE300003":["SGS048","TEBS MIX FRUITS 300ML",12],"BJTSE300004":["SGS048","TEBS MIX FRUITS 300ML",1],"BJTSE300007":["SGS049","TEBS LIME 300ML",12],"BJTSE300008":["SGS049","TEBS LIME 300ML",1],"BJTSE300013":["SGS050","TEBS PET SPARKLING LECI 300ML",12],"BJTSE300014":["SGS050","TEBS PET SPARKLING LECI 300ML",1]};
+  var BASE_DATE = "03-11-2026";
+  var SETTINGS_KEY = "sosro-settings-v1";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { raw: null, fileName: "", map: loadMap(), result: null, table: null, tableInfo: "", manual: loadJson("sosro-prodmanual-v1", {}), editCodes: [], editKey: "", oos: null, oosMode: "item" };
+
+  function loadJson(key, dflt) { try { var s = localStorage.getItem(key); if (s) { var v = JSON.parse(s); if (v && typeof v === "object") return v; } } catch (e) {} return dflt; }
+  function saveJson(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+  function loadMap() {
+    var m = loadJson("sosro-map-v1", null);
+    if (Array.isArray(m) && m.length) return m;
+    return DEFAULT_MAP.map(function (x) { return Object.assign({}, x); });
+  }
+  function saveMap() { saveJson("sosro-map-v1", state.map); }
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function normKey(s) { return String(s == null ? "" : s).toUpperCase().replace(/[_\s]+/g, " ").trim(); }
+  function normName(s) { return String(s == null ? "" : s).toUpperCase().replace(/\s+/g, " ").trim(); }
+  function normCode(s) { return String(s == null ? "" : s).toUpperCase().trim(); }
+  function clean(v) { return v == null ? "" : String(v).replace(/^'+/, "").trim(); }
+  /* Koma dan tanda kutip dibuang dari teks (alamat, outlet, keterangan) supaya CSV tidak perlu memakai tanda kutip. */
+  function noComma(v) { return clean(v).replace(/[,"]+/g, " ").replace(/\s+/g, " ").trim(); }
+  function num(v) { if (typeof v === "number") return v; var n = parseFloat(String(v == null ? "" : v).replace(/,/g, "")); return isNaN(n) ? 0 : n; }
+  function round(n, d) { var f = Math.pow(10, d); return Math.round((n + Number.EPSILON) * f) / f; }
+  function fmt(n) { return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(n); }
+
+  /* ---------- Tabel produk ---------- */
+  function baseTable() {
+    var t = {}; Object.keys(BASE_PRODUCTS).forEach(function (k) { t[normCode(k)] = BASE_PRODUCTS[k]; }); return t;
+  }
+  function loadTable() {
+    var saved = loadJson("sosro-prodtable-v1", null);
+    if (saved && saved.t && Object.keys(saved.t).length) {
+      var t = {}; Object.keys(saved.t).forEach(function (k) { var v = saved.t[k].slice(), b = BASE_PRODUCTS[k]; if (!(num(v[2]) > 0) && b) v[2] = b[2]; if (num(v[2]) > 0) t[normCode(k)] = v; });
+      state.table = t; state.tableInfo = "Tabel dari file Anda, diperbarui " + (saved.at || "-");
+      $("prodreset").hidden = false;
+    } else {
+      state.table = baseTable(); state.tableInfo = "Tabel bawaan, per " + BASE_DATE;
+      $("prodreset").hidden = true;
+    }
+    var names = {};
+    Object.keys(state.table).forEach(function (k) { var v = state.table[k]; if (v[0] && !names[v[0]]) names[v[0]] = v[1]; });
+    state.nd6 = names;
+    $("nd6list").innerHTML = Object.keys(names).sort().map(function (c) { return '<option value="' + esc(c) + '">' + esc(names[c]) + "</option>"; }).join("");
+    $("prodinfo").textContent = state.tableInfo + " · " + Object.keys(state.table).length + " kode 1Sky terpetakan ke " + Object.keys(names).length + " produk ND6";
+  }
+  function lookupProduct(code) {
+    var k = normCode(code), mv = state.manual[k];
+    if (mv && mv.c && mv.n && num(mv.s) > 0) return [mv.c, mv.n, num(mv.s)];
+    return state.table[k] || null;
+  }
+  function readProductTable(f) {
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function () {
+      try {
+        var wb = XLSX.read(new Uint8Array(fr.result), { type: "array" });
+        var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" });
+        var c1 = 0, c2 = 2, c3 = 3, c4 = 4, start = 0;
+        for (var i = 0; i < Math.min(rows.length, 5); i++) {
+          var h = rows[i].map(normKey);
+          if (h.some(function (x) { return x.indexOf("CODE ND6") >= 0; })) {
+            h.forEach(function (x, k) {
+              if (x.indexOf("1SKY") >= 0 && x.indexOf("CODE") >= 0) c1 = k;
+              if (x === "CODE ND6") c2 = k;
+              if (x.indexOf("NAMA PRODUK ND6") >= 0) c3 = k;
+              if (x.indexOf("SATUAN") >= 0) c4 = k;
+            });
+            start = i + 1; break;
+          }
+        }
+        var t = {}, n = 0;
+        for (var j = start; j < rows.length; j++) {
+          var r = rows[j], a = clean(r[c1]), c = clean(r[c2]), nm = clean(r[c3]), st = num(r[c4]);
+          if (!a || !c || c.charAt(0) === "#" || !nm || nm.charAt(0) === "#" || !(st > 0)) continue;
+          t[a] = [c, nm, st]; n++;
+        }
+        if (!n) { $("prodtoast").textContent = "Tidak ada baris produk yang terbaca. Cek kolom A, C, D dan E (Satuan in Pcs)."; return; }
+        var d = new Date();
+        saveJson("sosro-prodtable-v1", { t: t, at: pad(d.getDate()) + "-" + pad(d.getMonth() + 1) + "-" + d.getFullYear() });
+        loadTable(); $("prodtoast").textContent = n + " produk dibaca dari " + f.name + ".";
+        if (state.raw) prepare();
+      } catch (e) { $("prodtoast").textContent = "File tabel produk tidak bisa dibaca."; }
+    };
+    fr.readAsArrayBuffer(f);
+  }
+
+  /* ---------- Tanggal ---------- */
+  function parseRange(raw) {
+    for (var i = 0; i < Math.min(raw.length, 12); i++) {
+      var t = raw[i] && raw[i][0]; if (typeof t !== "string") continue;
+      if (!/TANGGAL/i.test(t)) continue;
+      // Judul bisa berisi rentang ("03-11-2026 s/d 04-11-2026") atau satu tanggal saja ("04-11-2026").
+      var m = t.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})(?:\s*s\/d\s*(\d{1,2})[-\/](\d{1,2})[-\/](\d{4}))?/i);
+      if (m) { var a = Date.UTC(+m[3], +m[2] - 1, +m[1]); return { a: a, b: m[4] ? Date.UTC(+m[6], +m[5] - 1, +m[4]) : a }; }
+    }
+    return null;
+  }
+  function valid(c) { return c.m >= 1 && c.m <= 12 && c.d >= 1 && c.d <= 31; }
+  function inRange(c, rg) { if (!rg || !valid(c)) return false; var t = Date.UTC(c.y, c.m - 1, c.d); return t >= rg.a && t <= rg.b; }
+  /* Mengembalikan {d,m,y,amb}. amb = true bila urutan hari/bulan terpaksa ditebak. */
+  function dateParts(v, order, rg, ref) {
+    var s, iso, p1, p2, y, fromNum = false;
+    if (typeof v === "number") {
+      // Excel sering salah menafsirkan teks 04-11-2026 (hari-bulan) sebagai 11 April. Angka serialnya diperlakukan
+      // seperti teks "bulan/hari" (md = apa adanya), lalu dicek lagi terhadap rentang judul dan DATE CREATE.
+      var c = XLSX.SSF.parse_date_code(v); if (!c) return null;
+      p1 = c.m; p2 = c.d; y = c.y; fromNum = true;
+    } else {
+      s = clean(v); iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (iso) return { d: +iso[3], m: +iso[2], y: +iso[1] };
+      var x = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+      if (!x) return null;
+      p1 = +x[1]; p2 = +x[2]; y = +x[3];
+    }
+    var dm = { d: p1, m: p2, y: y }, md = { d: p2, m: p1, y: y };
+    if (order === "md") return md;
+    if (order === "dm") return dm;
+    var okDm = inRange(dm, rg), okMd = inRange(md, rg);
+    if (okDm && !okMd) return dm;
+    if (okMd && !okDm) return md;
+    if (p1 > 12) return dm;
+    if (p2 > 12) return md;
+    if (p1 === p2) return md;
+    // Tanpa rentang di judul: pilih tafsiran yang paling dekat dengan tanggal DATE CREATE baris yang sama (formatnya pasti yyyy-mm-dd).
+    if (ref != null) {
+      var t1 = Math.abs(Date.UTC(dm.y, dm.m - 1, dm.d) - ref), t2 = Math.abs(Date.UTC(md.y, md.m - 1, md.d) - ref);
+      if (t1 !== t2) return t1 < t2 ? dm : md;
+    }
+    if (fromNum) return md; // angka tanggal Excel tanpa petunjuk lain: dipakai apa adanya
+    dm.amb = true; return dm;
+  }
+  function fmtDate(p, style) { return style === "dmy" ? pad(p.d) + "-" + pad(p.m) + "-" + p.y : p.y + "-" + pad(p.m) + "-" + pad(p.d); }
+  function dateTime(v, style) {
+    var p, H, M, S;
+    if (typeof v === "number") {
+      var c = XLSX.SSF.parse_date_code(v); if (!c) return "";
+      p = { d: c.d, m: c.m, y: c.y }; H = c.H; M = c.M; S = Math.floor(c.S);
+    } else {
+      var s = clean(v), m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (!m) return s;
+      p = { y: +m[1], m: +m[2], d: +m[3] }; H = +m[4]; M = +m[5]; S = m[6] ? +m[6] : 0;
+    }
+    return style === "dmy" ? fmtDate(p, "dmy") + " " + pad(H) + ":" + pad(M) + ":" + pad(S) : fmtDate(p, "iso") + " " + pad(H) + ":" + pad(M);
+  }
+
+  /* ---------- Konversi ---------- */
+  /* Aturan: bila kolom PRODUK (kolom M) di faktur memuat kata PCS, qty sudah dalam pcs dan tidak dikonversi lagi. */
+  function hasPcsWord(name) { return /\bPCS\b/.test(String(name || "").toUpperCase()); }
+  function convert(raw, opt, map) {
+    var hi = -1, i;
+    for (i = 0; i < raw.length; i++) { if (normKey(raw[i] && raw[i][0]) === "TANGGAL") { hi = i; break; } }
+    if (hi < 0) return { error: "Baris judul kolom (TANGGAL, DATE CREATE, FAKTUR, ...) tidak ditemukan di file ini." };
+    var rg = parseRange(raw);
+    var idx = {};
+    raw[hi].forEach(function (h, k) { var key = normKey(h); if (key && !(key in idx)) idx[key] = k; });
+    var need = ["TANGGAL", "SALESMAN", "KD PRODUK", "QTY", "HARGA"];
+    var miss = need.filter(function (k) { return !(k in idx); });
+    if (miss.length) return { error: "Kolom tidak ditemukan: " + miss.join(", ") + "." };
+    var g = function (r, k) { return k in idx ? r[idx[k]] : null; };
+    var lookup = {};
+    map.forEach(function (m) { if (normName(m.nama) && m.cust && m.sales) lookup[normName(m.nama)] = m; });
+
+    var out = [], warnings = [], unmapped = {}, missing = {}, fakturs = {}, oosRemoved = [], pcsList = {}, convList = {}, converted = 0, convRows = 0, sumPcs = 0, nonzeroDisc = 0, amb = 0, badDate = 0, fixedMissing = false, sample = null, prodCodes = {}, prodOk = {};
+    var sumNet = 0, sumExc = 0, dates = [];
+    for (i = hi + 1; i < raw.length; i++) {
+      var r = raw[i]; if (!r) continue;
+      var tg = g(r, "TANGGAL"); if (tg == null || tg === "") continue;
+      var nama = normName(g(r, "SALESMAN")), m = lookup[nama];
+      if (!m) unmapped[nama || "(kosong)"] = true;
+      var produk = clean(g(r, "PRODUK")), kd1 = clean(g(r, "KD PRODUK")), qty = num(g(r, "QTY")), harga = num(g(r, "HARGA")), pcs = false;
+      var pr = lookupProduct(kd1);
+      var fk = clean(g(r, opt.faktur)) || clean(g(r, "FAKTUR"));
+      /* Nomor SO dari ND6 dicari di kolom FAKTUR, FAKTUR 2 dan ORDER (angka saja juga cocok, mis. DSD-25530513). */
+      var oosK = oosKey([fk, clean(g(r, "FAKTUR")), clean(g(r, "FAKTUR 2")), clean(g(r, "ORDER"))]);
+      var oe = oosK && state.oos[oosK];
+      if (oe) {
+        oe.seen = true;
+        var hit = state.oosMode === "faktur" || (pr && oe.codes.indexOf(pr[0].toUpperCase()) >= 0);
+        if (hit) { oosRemoved.push({ fk: fk + (oosK !== fk ? " (SO " + oosK + ")" : ""), kode: pr ? pr[0] : kd1, nama: pr ? pr[1] : produk, qty: qty, full: state.oosMode === "faktur" }); continue; }
+      }
+      prodCodes[normCode(kd1)] = true;
+      if (pr) prodOk[normCode(kd1)] = true;
+      else { var mk = normCode(kd1); if (!missing[mk]) missing[mk] = { kode: kd1, nama: produk, n: 0 }; missing[mk].n++; }
+      /* Konversi ke pcs: qty x "Satuan in Pcs" dari tabel produk. Bila kolom PRODUK sudah memuat kata PCS, qty tidak diubah. */
+      var qtyOrig = qty, hargaOrig = harga, fac = 1;
+      if (hasPcsWord(produk)) {
+        pcs = true; converted++;
+        var pk = normCode(produk);
+        if (!pcsList[pk]) pcsList[pk] = { kode: kd1, nama: produk, n: 0 };
+        pcsList[pk].n++;
+      } else if (pr && pr[2] > 1) {
+        fac = pr[2]; qty = qtyOrig * fac; harga = hargaOrig / fac; convRows++;
+        var ck2 = normCode(produk);
+        if (!convList[ck2]) convList[ck2] = { kode: kd1, nama: produk, fac: fac, n: 0, q0: 0, q1: 0 };
+        convList[ck2].n++; convList[ck2].q0 += qtyOrig; convList[ck2].q1 += qty;
+      }
+      var d1 = num(g(r, "DISKON 1")), d2 = num(g(r, "DISKON 2"));  /* diskon di faktur sudah net (inc PPN), ikut dibagi pembagi */
+      if (d1 || d2) nonzeroDisc++;
+      var dec = opt.dec;
+      var hargaExc = round(harga / opt.divisor, dec);
+      var sub = round(qtyOrig * hargaOrig / opt.divisor, dec);  /* subtotal dihitung dari qty dan harga asli, supaya tidak terkena pembulatan harga per pcs */
+      d1 = round(d1 / opt.divisor, dec); d2 = round(d2 / opt.divisor, dec);
+      var total = round(sub - d1 - d2, dec);
+      sumNet += qtyOrig * hargaOrig; sumExc += sub; sumPcs += qty;
+      var dcp = dateParts(g(r, "DATE CREATE"), "md", null), ref = dcp ? Date.UTC(dcp.y, dcp.m - 1, dcp.d) : null;
+      var dp = dateParts(tg, opt.order, rg, ref), tgl = "";
+      if (opt.src === "create") { var dcr = dateParts(g(r, "DATE CREATE"), "md", null); if (dcr) dp = dcr; }
+      else if (opt.src === "fixed") { dp = /^\d{4}-\d{2}-\d{2}$/.test(opt.fixed) ? { y: +opt.fixed.slice(0, 4), m: +opt.fixed.slice(5, 7), d: +opt.fixed.slice(8, 10) } : null; }
+      if (dp && opt.shift) { var sh = new Date(Date.UTC(dp.y, dp.m - 1, dp.d + opt.shift)); dp = { y: sh.getUTCFullYear(), m: sh.getUTCMonth() + 1, d: sh.getUTCDate(), amb: dp.amb }; }
+      if (dp) { tgl = fmtDate(dp, opt.dateFmt); if (dp.amb) amb++; dates.push(dp.y + "-" + pad(dp.m) + "-" + pad(dp.d)); }
+      else if (opt.src === "fixed") { fixedMissing = true; }
+      else { badDate++; tgl = clean(tg); }
+      if (!sample) sample = { tg: typeof tg === "number" ? fmtDate(dateParts(tg, "md", null) || { y: 0, m: 0, d: 0 }, "iso") + " (angka tanggal Excel)" : clean(tg), cr: dateTime(g(r, "DATE CREATE"), "iso"), out: tgl };
+      fakturs[fk] = true;
+      var ket = clean(g(r, "KET ORDER")) || clean(g(r, "KET PROMO"));
+      out.push({
+        pcs: pcs, conv: fac > 1, fac: fac, qty0: qtyOrig, miss: !pr, kd1: kd1,
+        cells: [tgl, dateTime(g(r, "DATE CREATE"), opt.dateFmt), fk, m ? m.cust : "", noComma(g(r, "OUTLET")), noComma(g(r, "ALAMAT")),
+          clean(g(r, "ORDER")), m ? m.sales : "", clean(g(r, "SALESMAN")), pr ? pr[0] : "", pr ? pr[1] : "",
+          qty, hargaExc, sub, d1, d2, total, noComma(ket)]
+      });
+    }
+    /* ND6 menolak produk yang sama lebih dari satu kali dalam satu faktur (mis. barang bonus yang dicatat di baris terpisah).
+       Baris dengan faktur dan kode ND6 yang sama digabung: qty, subtotal, diskon dan total dijumlahkan. */
+    var merged = [], seenRow = {}, mergedInfo = [], priceDiff = [];
+    out.forEach(function (row) {
+      var c = row.cells, kk = c[2] + "\u0001" + c[9];
+      if (!c[9]) { merged.push(row); return; }
+      var first = seenRow[kk];
+      if (!first) { seenRow[kk] = row; row.n = 1; row.hargas = [c[12]]; merged.push(row); return; }
+      var f = first.cells;
+      f[11] = round(f[11] + c[11], 6); f[13] = round(f[13] + c[13], opt.dec); f[14] = round(f[14] + c[14], opt.dec);
+      f[15] = round(f[15] + c[15], opt.dec); f[16] = round(f[16] + c[16], opt.dec);
+      if (!f[17] && c[17]) f[17] = c[17];
+      first.n++; first.hargas.push(c[12]); first.conv = false; first.pcs = first.pcs && row.pcs;
+    });
+    merged.forEach(function (row) {
+      if (!row.n || row.n < 2) return;
+      var c = row.cells, diff = row.hargas.some(function (x) { return x !== row.hargas[0]; });
+      if (diff && c[11]) c[12] = round((c[13] / c[11]), opt.dec);
+      row.merged = row.n;
+      mergedInfo.push(c[2] + " " + c[9] + " (" + row.n + " baris)");
+      if (diff) priceDiff.push(c[2] + " " + c[9]);
+    });
+    out = merged;
+    var un = Object.keys(unmapped), mi = Object.keys(missing);
+    if (un.length) warnings.push({ k: "bad", t: "Sales belum lengkap di aturan: " + un.join(", ") + ". Isi Kode Cust dan Kode Sales di langkah 2." });
+    if (mi.length) warnings.push({ k: "bad", t: mi.length + " produk belum punya kode ND6 (" + mi.join(", ") + "). Isi di tabel \"Produk belum ada\" di bawah sebelum download." });
+    if (fixedMissing) warnings.push({ k: "bad", t: "Pilih \"Tanggal tetap\" di langkah 4 dulu, atau ganti Sumber tanggal hasil." });
+    if (badDate) warnings.push({ k: "bad", t: badDate + " baris punya tanggal yang tidak bisa dibaca. Cek kolom TANGGAL." });
+    if (amb) warnings.push({ k: "warn", t: amb + " baris punya tanggal yang bisa dibaca dua cara dan dianggap Hari/Bulan. Atur \"Urutan tanggal\" di langkah 4 bila salah." });
+    if (mergedInfo.length) warnings.push({ k: "warn", t: mergedInfo.length + " produk digabung karena muncul lebih dari sekali dalam satu faktur (ND6 menolak produk ganda, biasanya barang bonus): " + mergedInfo.slice(0, 12).join(", ") + (mergedInfo.length > 12 ? ", ..." : "") + ". Qty, subtotal, diskon dan total dijumlahkan." });
+    if (priceDiff.length) warnings.push({ k: "bad", t: "Harga berbeda pada baris yang digabung: " + priceDiff.join(", ") + ". Harga hasil dihitung ulang dari subtotal / qty. Cek dulu sebelum upload." });
+    if (convRows) warnings.push({ k: "ok", t: convRows + " baris dikonversi ke satuan PCS (qty x Satuan in Pcs, harga dibagi Satuan in Pcs sebelum dibagi " + opt.divisor + "). Subtotal dan total tidak berubah." });
+    if (converted) warnings.push({ k: "warn", t: converted + " baris sudah berkata PCS di kolom PRODUK, qty dan harga dibiarkan (tidak dikonversi lagi)." });
+    if (oosRemoved.length) warnings.push({ k: "warn", t: oosRemoved.length + " baris OOS dibuang dari CSV (" + (state.oosMode === "faktur" ? "seluruh faktur yang kena OOS" : "hanya produk OOS") + "). Faktur terdampak tidak lengkap seperti di aslinya." });
+    var oosLost = state.oos ? Object.keys(state.oos).filter(function (k) { return !state.oos[k].seen; }) : [];
+    if (oosLost.length) warnings.push({ k: "warn", t: "Sales Order di file error tidak ditemukan di faktur ini: " + oosLost.join(", ") + ". Nomor SO dicari di kolom FAKTUR, FAKTUR 2 dan ORDER, tidak ada yang cocok. Cek apakah faktur ini memang yang dipakai saat upload ke ND6." });
+    if (nonzeroDisc) warnings.push({ k: "warn", t: nonzeroDisc + " baris punya diskon. Diskon 1 dan Diskon 2 di faktur sudah net (inc PPN), jadi ikut dibagi " + opt.divisor + " seperti harga." });
+    if (!out.length) warnings.push({ k: "bad", t: "Tidak ada baris data di bawah judul kolom." });
+    var uniqDates = dates.filter(function (d, k) { return dates.indexOf(d) === k; }).sort();
+    return { sample: sample, fixedMissing: fixedMissing, rows: out, warnings: warnings, unmapped: un, missing: missing, missingCount: mi.length, prodTotal: Object.keys(prodCodes).length, prodOk: Object.keys(prodOk).length,
+      fakturCount: Object.keys(fakturs).length, oosRemoved: oosRemoved, pcsList: pcsList, convList: convList, convRows: convRows, sumPcs: sumPcs, sumNet: sumNet, sumExc: sumExc, dates: uniqDates, range: rg };
+  }
+
+  function csvCell(v) { var s = String(v == null ? "" : v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function toCsv(res) {
+    var lines = [HEADER.join(",")];
+    res.rows.forEach(function (r) { lines.push(r.cells.map(csvCell).join(",")); });
+    return lines.join("\r\n");
+  }
+
+  function options() {
+    var dv = parseFloat($("divisor").value), dc = parseInt($("dec").value, 10);
+    return { divisor: dv > 0 ? dv : 1.11, dec: dc >= 0 && dc <= 6 ? dc : 2, order: $("dateOrder").value, dateFmt: $("dateFmt").value, faktur: $("fakturSrc").value, src: $("dateSrc").value, fixed: $("fixedDate").value, shift: parseInt($("shift").value, 10) || 0 };
+  }
+  function saveSettings() {
+    // Tanggal tetap sengaja tidak disimpan agar tidak terbawa ke faktur hari berikutnya.
+    saveJson(SETTINGS_KEY, { divisor: $("divisor").value, dec: $("dec").value, faktur: $("fakturSrc").value, order: $("dateOrder").value, dateFmt: $("dateFmt").value,
+      src: $("dateSrc").value === "fixed" ? "tanggal" : $("dateSrc").value, shift: $("shift").value, auto: $("auto").checked });
+  }
+  function loadSettings() {
+    var s = loadJson(SETTINGS_KEY, null); if (!s) return;
+    if (s.divisor) $("divisor").value = s.divisor;
+    if (s.dec !== undefined && s.dec !== "") $("dec").value = s.dec;
+    if (s.shift !== undefined && s.shift !== "") $("shift").value = s.shift;
+    ["faktur:fakturSrc", "order:dateOrder", "dateFmt:dateFmt", "src:dateSrc"].forEach(function (p) {
+      var a = p.split(":"), el = $(a[1]);
+      if (s[a[0]] && Array.prototype.some.call(el.options, function (o) { return o.value === s[a[0]]; })) el.value = s[a[0]];
+    });
+    $("auto").checked = !!s.auto;
+  }
+
+  /* ---------- Tampilan ---------- */
+  function renderMissing(res) {
+    var codes = state.editCodes;
+    $("missing").hidden = !codes.length;
+    if (!codes.length) return;
+    var key = codes.join("|");
+    if (key !== state.editKey) {
+      state.editKey = key;
+      $("missrows").innerHTML = codes.map(function (k) {
+        var info = state.editInfo[k], mv = state.manual[k] || {};
+        return '<tr data-code="' + esc(k) + '"><td class="mono">' + esc(info.kode) + '</td><td class="ro">' + esc(info.nama) + '</td><td class="num mono">' + info.n + "</td>" +
+          '<td><input type="text" list="nd6list" data-f="c" value="' + esc(mv.c || "") + '" aria-label="Kode ND6 untuk ' + esc(info.kode) + '" placeholder="SGS0xx"></td>' +
+          '<td><input type="text" data-f="n" value="' + esc(mv.n || "") + '" aria-label="Nama produk ND6 untuk ' + esc(info.kode) + '"></td>' +
+          '<td><input type="number" min="1" step="1" data-f="s" value="' + esc(mv.s || "") + '" aria-label="Satuan in Pcs untuk ' + esc(info.kode) + '" placeholder="mis. 24" style="width:90px"></td>' +
+          '<td class="st"></td></tr>';
+      }).join("");
+    }
+    var left = 0;
+    Array.prototype.forEach.call($("missrows").querySelectorAll("tr"), function (tr) {
+      var mv = state.manual[tr.getAttribute("data-code")], ok = mv && mv.c && mv.n && num(mv.s) > 0; if (!ok) left++;
+      tr.querySelector(".st").innerHTML = ok ? '<span class="chip ok">OK</span>' : '<span class="chip bad">KURANG</span>';
+    });
+    $("missing-h").textContent = left ? "Produk belum ada di tabel ND6 (" + left + " belum diisi)" : "Produk tambahan sudah diisi";
+  }
+
+  function renderResult() {
+    var res = convert(state.raw, options(), state.map);
+    state.result = res;
+    $("result").hidden = false; $("empty").hidden = true;
+    if (res.error) {
+      $("stats").innerHTML = ""; $("preview").innerHTML = ""; $("missing").hidden = true;
+      $("notes").innerHTML = '<div class="note bad">' + esc(res.error) + "</div>";
+      $("dl").disabled = true; return;
+    }
+    renderMissing(res); renderOos(res); renderPcs(res);
+    $("stats").innerHTML = [
+      ["Baris", res.rows.length],
+      ["Faktur", res.fakturCount],
+      ["Produk terpetakan ND6", res.prodOk + " / " + res.prodTotal],
+      ["Baris dikonversi ke pcs", res.convRows],
+      ["Total qty (pcs)", fmt(res.sumPcs)],
+      ["Total net (asal)", fmt(res.sumNet)],
+      ["Total exc (hasil)", fmt(res.sumExc)]
+    ].map(function (s) { return '<div class="stat"><b>' + esc(s[1]) + "</b><span>" + s[0] + "</span></div>"; }).join("");
+    var notes = res.warnings.slice();
+    var blocked = res.unmapped.length > 0 || res.missingCount > 0 || res.fixedMissing || !res.rows.length;
+    if (res.sample && !res.fixedMissing) notes.unshift({ k: "ok", t: "Cek tanggal, baris pertama: TANGGAL di file \"" + res.sample.tg + "\", DATE CREATE \"" + res.sample.cr + "\", hasil di CSV: " + res.sample.out + ". Tanggal hasil: " + res.dates.map(function (d) { return fmtDate({ y: +d.slice(0, 4), m: +d.slice(5, 7), d: +d.slice(8, 10) }, options().dateFmt); }).join(" s/d ") + "." });
+    $("notes").innerHTML = notes.map(function (w) { return '<div class="note ' + w.k + '">' + esc(w.t) + "</div>"; }).join("");
+    var numCols = { 11: 1, 12: 1, 13: 1, 14: 1, 15: 1, 16: 1 };
+    var h = "<thead><tr>" + HEADER.map(function (c, k) { return '<th class="' + (numCols[k] ? "num" : "") + '">' + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>";
+    res.rows.forEach(function (r) {
+      h += "<tr>" + r.cells.map(function (c, k) {
+        var cls = numCols[k] ? "num mono" : "mono";
+        var v = numCols[k] ? fmt(c) : c;
+        var chip = "";
+        if (k === 10 && r.pcs) chip = '<span class="chip">SUDAH PCS</span>';
+        if (k === 10 && r.merged) chip = '<span class="chip ok">GABUNG ' + r.merged + " BARIS</span>";
+        if (k === 11 && r.conv) chip = '<span class="chip ok">' + fmt(r.qty0) + " x " + r.fac + "</span>";
+        if (k === 9 && r.miss) { v = ""; chip = '<span class="chip bad">BELUM ADA: ' + esc(r.kd1) + "</span>"; }
+        return '<td class="' + cls + '">' + esc(v) + chip + "</td>";
+      }).join("") + "</tr>";
+    });
+    $("preview").innerHTML = h + "</tbody>";
+    $("dl").disabled = blocked;
+    return !blocked;
+  }
+
+  /* Dipanggil sekali per file baru: siapkan daftar produk/sales yang perlu diisi, lalu tampilkan hasil. */
+  function prepare(isNewFile) {
+    var res = convert(state.raw, options(), state.map);
+    if (!res.error) {
+      // sales baru: tambahkan baris kosong ke aturan sales
+      var added = false;
+      res.unmapped.forEach(function (nm) {
+        if (nm === "(kosong)") return;
+        var exists = state.map.some(function (m) { return normName(m.nama) === nm; });
+        if (!exists) { state.map.push({ nama: nm, cust: "", sales: "" }); added = true; }
+      });
+      if (added) { saveMap(); renderMap(); }
+      // produk yang tidak ada di tabel dasar
+      var info = {}, order = [];
+      var hi = -1, i;
+      for (i = 0; i < state.raw.length; i++) { if (normKey(state.raw[i] && state.raw[i][0]) === "TANGGAL") { hi = i; break; } }
+      var ck = -1, pk = -1;
+      state.raw[hi].forEach(function (h, k) { var n = normKey(h); if (n === "KD PRODUK" && ck < 0) ck = k; if (n === "PRODUK" && pk < 0) pk = k; });
+      for (i = hi + 1; i < state.raw.length; i++) {
+        var r = state.raw[i]; if (!r || r[0] == null || r[0] === "") continue;
+        var code = clean(r[ck]), k2 = normCode(code); if (!k2 || state.table[k2]) continue;
+        if (!info[k2]) { info[k2] = { kode: code, nama: pk >= 0 ? clean(r[pk]) : "", n: 0 }; order.push(k2); }
+        info[k2].n++;
+      }
+      state.editCodes = order; state.editInfo = info; state.editKey = "";
+    }
+    var ok = renderResult();
+    if (isNewFile && ok && $("auto").checked) download();
+  }
+  function render() { if (state.raw) renderResult(); }
+
+  /* ---------- OOS ---------- */
+  function oosKey(cands) {
+    if (!state.oos) return "";
+    for (var i = 0; i < cands.length; i++) {
+      var c = String(cands[i] || "").trim(); if (!c) continue;
+      if (state.oos[c]) return c;
+      var m = c.match(/\d{6,}/g);
+      if (m) for (var j = 0; j < m.length; j++) if (state.oos[m[j]]) return m[j];
+    }
+    return "";
+  }
+  /* Format: "Sales Order 123 tidak valid" lalu ", Out of Stock Product SGS019 SGS024  pada File Import". */
+  function parseOos(text) {
+    var o = {}, cur = null, n = 0;
+    String(text).split(/\r?\n/).forEach(function (ln) {
+      var a = ln.match(/Sales Order\s+(\S+)\s+tidak valid/i);
+      if (a) { cur = a[1]; }
+      var b = ln.match(/Out of Stock Product\s+(.*?)\s*(?:pada File Import|$)/i);
+      if (b && cur) {
+        if (!o[cur]) o[cur] = { codes: [], seen: false };
+        b[1].split(/[\s,]+/).forEach(function (c) { c = c.toUpperCase(); if (c && o[cur].codes.indexOf(c) < 0) { o[cur].codes.push(c); n++; } });
+      }
+    });
+    return { map: o, so: Object.keys(o).length, codes: n };
+  }
+  function readOos(f) {
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function () {
+      var p = parseOos(fr.result);
+      if (!p.so) { $("oostoast").textContent = "Tidak ada baris \"Out of Stock Product\" di file ini."; return; }
+      state.oos = p.map;
+      $("oostoast").textContent = p.so + " Sales Order dan " + p.codes + " kode OOS dibaca dari " + f.name + ".";
+      render();
+    };
+    fr.readAsText(f);
+  }
+  function renderPcs(res) {
+    var l = res && res.pcsList ? Object.keys(res.pcsList) : [];
+    var cl = res && res.convList ? Object.keys(res.convList) : [];
+    $("pcsbox").hidden = !l.length && !cl.length;
+    $("pcs-h").textContent = cl.length + " jenis produk dikonversi ke pcs, " + l.length + " jenis sudah PCS (cek silang)";
+    $("pcsrows").innerHTML = cl.sort().map(function (k) { var x = res.convList[k];
+      return '<tr><td class="mono">' + esc(x.kode) + '</td><td class="ro">' + esc(x.nama) + '</td><td class="num mono">' + x.n + '</td><td class="num mono">' + fmt(x.q0) + " &rarr; " + fmt(x.q1) + ' <span class="chip ok">x' + x.fac + "</span></td></tr>"; }).join("") +
+      l.sort().map(function (k) { var x = res.pcsList[k];
+      return '<tr><td class="mono">' + esc(x.kode) + '</td><td class="ro">' + esc(x.nama) + '</td><td class="num mono">' + x.n + '</td><td class="mono">sudah PCS, tidak diubah</td></tr>'; }).join("");
+  }
+  function renderOos(res) {
+    var rem = res && res.rows ? res.oosRemoved : [];
+    $("oosreset").hidden = !state.oos;
+    $("oostable").hidden = !rem.length;
+    $("oosrows").innerHTML = rem.map(function (x) {
+      return '<tr><td class="mono">' + esc(x.fk) + '</td><td class="mono">' + esc(x.kode) + '</td><td class="ro">' + esc(x.nama) + '</td><td class="num mono">' + fmt(x.qty) + '</td><td>' + (x.full ? "Seluruh faktur" : "Baris produk") + "</td></tr>";
+    }).join("");
+    $("oos-h").textContent = rem.length ? "Hapus produk Out of Stock (OOS): " + rem.length + " baris dibuang" : "Hapus produk Out of Stock (OOS)";
+  }
+
+  function fileName() {
+    var d = state.result.dates, a = d[0] || "", b = d[d.length - 1] || "";
+    var s = a.split("-").reverse().join(""), e = b.split("-").reverse().join("");
+    return "ImportSosroND6_" + (s && e && s !== e ? s + "-" + e : s || "hasil") + (state.result.oosRemoved && state.result.oosRemoved.length ? "_tanpaOOS" : "") + ".csv";
+  }
+  function say(t) { $("toast").textContent = t; }
+
+  async function download() {
+    if (!state.result || state.result.error || $("dl").disabled) return;
+    var data = toCsv(state.result), name = fileName();
+    var dls = null;
+    try { dls = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
+    if (dls) {
+      try { await dls.save({ filename: name, data: data }); say("Tersimpan: " + name); }
+      catch (e) { say(e && e.code === "declined" ? "Download dibatalkan." : "File tidak bisa disimpan di tampilan ini."); }
+      return;
+    }
+    var url = URL.createObjectURL(new Blob([data], { type: "text/csv;charset=utf-8" }));
+    var a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    say("Mengunduh " + name + " (" + state.result.rows.length + " baris)");
+  }
+
+  function readFile(f) {
+    if (!f) return;
+    say("");
+    var fr = new FileReader();
+    fr.onload = function () {
+      try {
+        // raw:true menjaga teks tanggal apa adanya (tidak ditebak Excel), urutan hari/bulan dibaca sendiri.
+        var wb = XLSX.read(new Uint8Array(fr.result), { type: "array", raw: true });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        state.raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+        state.fileName = f.name;
+        state.oos = null; $("oostoast").textContent = "";
+        $("fileinfo").hidden = false;
+        $("fileinfo").textContent = f.name + " · sheet " + wb.SheetNames[0] + " · " + state.raw.length + " baris";
+        prepare(true);
+      } catch (e) {
+        $("result").hidden = false;
+        $("notes").innerHTML = '<div class="note bad">File tidak bisa dibaca. Pastikan formatnya Excel atau CSV.</div>';
+        $("stats").innerHTML = ""; $("preview").innerHTML = ""; $("missing").hidden = true; $("dl").disabled = true;
+      }
+    };
+    fr.readAsArrayBuffer(f);
+  }
+
+  function renderMap() {
+    $("maprows").innerHTML = state.map.map(function (m, k) {
+      return '<tr><td><input type="text" data-k="' + k + '" data-f="nama" value="' + esc(m.nama) + '" aria-label="Nama sales di file"></td>' +
+        '<td><input type="text" data-k="' + k + '" data-f="cust" value="' + esc(m.cust) + '" aria-label="Kode Cust"></td>' +
+        '<td><input type="text" data-k="' + k + '" data-f="sales" value="' + esc(m.sales) + '" aria-label="Kode Sales"></td>' +
+        '<td><button type="button" class="icon" data-del="' + k + '" aria-label="Hapus baris">Hapus</button></td></tr>';
+    }).join("");
+  }
+
+  $("cols").innerHTML = HEADER.map(function (c) { return "<span>" + esc(c) + "</span>"; }).join("");
+  loadSettings(); loadTable(); renderMap();
+
+  $("maprows").addEventListener("input", function (e) {
+    var t = e.target, k = t.getAttribute("data-k"); if (k == null) return;
+    state.map[+k][t.getAttribute("data-f")] = t.value.trim(); saveMap(); render();
+  });
+  $("maprows").addEventListener("click", function (e) {
+    var k = e.target.getAttribute("data-del"); if (k == null) return;
+    state.map.splice(+k, 1); saveMap(); renderMap(); render();
+  });
+  $("addrow").addEventListener("click", function () {
+    state.map.push({ nama: "", cust: "", sales: "" }); saveMap(); renderMap();
+    var ins = $("maprows").querySelectorAll("tr:last-child input"); if (ins[0]) ins[0].focus();
+  });
+
+  // Isi manual produk yang belum ada di tabel ND6
+  $("missrows").addEventListener("input", function (e) {
+    var t = e.target, tr = t.closest("tr"); if (!tr) return;
+    var code = tr.getAttribute("data-code"), f = t.getAttribute("data-f");
+    var mv = state.manual[code] || { c: "", n: "", s: "" };
+    mv[f] = t.value.trim();
+    if (f === "c" && state.nd6[mv.c.toUpperCase()] !== undefined) { mv.c = mv.c.toUpperCase(); mv.n = state.nd6[mv.c]; tr.querySelector('input[data-f="n"]').value = mv.n; }
+    state.manual[code] = mv; saveJson("sosro-prodmanual-v1", state.manual); render();
+  });
+
+  function syncFixed() { $("fixedWrap").hidden = $("dateSrc").value !== "fixed"; }
+  ["divisor", "dec", "fakturSrc", "dateOrder", "dateFmt", "dateSrc", "fixedDate", "shift", "auto"].forEach(function (id) {
+    $(id).addEventListener("input", function () { syncFixed(); saveSettings(); render(); });
+    $(id).addEventListener("change", function () { syncFixed(); saveSettings(); render(); });
+  });
+  syncFixed();
+  $("file").addEventListener("change", function (e) { readFile(e.target.files[0]); e.target.value = ""; });
+  $("prodfile").addEventListener("change", function (e) { readProductTable(e.target.files[0]); e.target.value = ""; });
+  $("prodreset").addEventListener("click", function () {
+    try { localStorage.removeItem("sosro-prodtable-v1"); } catch (e) {}
+    loadTable(); $("prodtoast").textContent = "Kembali ke tabel bawaan."; if (state.raw) prepare();
+  });
+
+  // Tarik file ke mana saja di halaman
+  var depth = 0;
+  function hasFiles(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0; }
+  window.addEventListener("dragenter", function (e) { if (!hasFiles(e)) return; e.preventDefault(); depth++; document.body.classList.add("dragging"); });
+  window.addEventListener("dragover", function (e) { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener("dragleave", function (e) { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) document.body.classList.remove("dragging"); });
+  window.addEventListener("drop", function (e) {
+    if (!hasFiles(e)) return; e.preventDefault(); depth = 0; document.body.classList.remove("dragging");
+    readFile(e.dataTransfer.files[0]);
+  });
+  $("dl").addEventListener("click", download);
+  $("oosfile").addEventListener("change", function (e) { readOos(e.target.files[0]); e.target.value = ""; });
+  $("oosmode").addEventListener("change", function () { state.oosMode = $("oosmode").value; render(); });
+  $("oosreset").addEventListener("click", function () { state.oos = null; $("oostoast").textContent = "Semua baris dikembalikan."; render(); });
+})();
+</script>
+
+</body></html>
